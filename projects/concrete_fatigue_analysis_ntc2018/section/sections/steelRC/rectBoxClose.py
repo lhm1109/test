@@ -1,0 +1,207 @@
+from projects.concrete_fatigue_analysis_ntc2018.section.base.src_base import SRCBaseSection
+from projects.concrete_fatigue_analysis_ntc2018.utils.geometry.shape_generator import ShapeGenerator
+from projects.concrete_fatigue_analysis_ntc2018.utils.calculators.unit_converter import get_unit_conversion_factor
+from projects.concrete_fatigue_analysis_ntc2018.utils.geometry.transform import TransFormGeometry
+
+import math
+
+class RectBoxCloseSection(SRCBaseSection):
+    """SRC: RectBoxClose Section"""
+    
+    def _get_section_shape(self):
+        return "Box"
+    
+    def _get_dimensions_from_db_data(self, data_base):
+        units = data_base.get("unit","")
+        dimension = data_base.get("dimension",{})
+        unit_conversion_factor = get_unit_conversion_factor(units, self.unit_system)
+        
+        return [
+            dimension.get("h",0)*unit_conversion_factor,
+            dimension.get("b",0)*unit_conversion_factor,
+            dimension.get("tw",0)*unit_conversion_factor,
+            dimension.get("tf1",0)*unit_conversion_factor,
+            dimension.get("c",0)*unit_conversion_factor,
+            dimension.get("tf2",0)*unit_conversion_factor
+        ]
+    
+    def _get_dimensions_from_vsize(self, vSize):
+        
+        steel_size = vSize.get("steel_size", [])
+        concrete_size = vSize.get("concrete_size", [])
+        
+        if len(steel_size) < 6:
+            return None
+        elif len(steel_size) > 6:
+            steel_size = steel_size[:6]
+        
+        if len(concrete_size) < 2:
+            return None
+        elif len(concrete_size) > 2:
+            concrete_size = concrete_size[:2]
+        
+        return {
+            "steel_size": steel_size,
+            "concrete_size": concrete_size
+        }
+    
+    def _generate_shape_vertices(self, dimensions, options):
+        
+        # 치수 추출
+        H, B, tw, tf1, C, tf2 = dimensions["steel_size"]
+        Hc, Bc = dimensions["concrete_size"]
+        
+        # 강재 단면 생성
+        box_shape_coords = ShapeGenerator.generate_box_shape(H, B, tw, tf1, C, tf2)
+        
+        outer_box_coords = box_shape_coords["outer"]
+        inner_box_coords = box_shape_coords["inner"]
+        
+        reverse_inner_box_coords = TransFormGeometry.reverse_coordinates_list(inner_box_coords)
+        
+        yco_s = outer_box_coords["y"]
+        zco_s = outer_box_coords["z"]
+        yci_s = reverse_inner_box_coords["y"]
+        zci_s = reverse_inner_box_coords["z"]
+        
+        # 원점 좌표로 이동 (Center of Section)
+        yo_s = TransFormGeometry.calculate_origin_coordinates(yco_s)
+        zo_s = TransFormGeometry.calculate_origin_coordinates(zco_s)
+        
+        yco_s = [y - yo_s for y in yco_s]
+        zco_s = [z - zo_s for z in zco_s]
+        yci_s = [y - yo_s for y in yci_s]
+        zci_s = [z - zo_s for z in zci_s]
+        
+        # 콘크리트 단면 생성
+        yco_c = [-Bc/2, -Bc/2, Bc/2, Bc/2, -Bc/2]
+        zco_c = [Hc/2, -Hc/2, -Hc/2, Hc/2, Hc/2]
+        
+        yci_c = yco_s.copy()
+        zci_c = zco_s.copy()
+        
+        yci_c.reverse()
+        zci_c.reverse()
+        
+        yco_c_2 = yci_s.copy()
+        zco_c_2 = zci_s.copy()
+        
+        yco_c_2.reverse()
+        zco_c_2.reverse()
+        
+        # 기준 좌표 추출
+        point_1_s = [yco_s[0], zco_s[0]]
+        point_2_s = [yco_s[11], zco_s[11]]
+        point_3_s = [yco_s[6], zco_s[6]]
+        point_4_s = [yco_s[5], zco_s[5]]
+        
+        point_1_c_encase = [yco_c[0], zco_c[0]]
+        point_2_c_encase = [yco_c[3], zco_c[3]]
+        point_3_c_encase = [yco_c[2], zco_c[2]]
+        point_4_c_encase = [yco_c[1], zco_c[1]]
+        
+        point_1_c_infill = [yco_c_2[0], zco_c_2[0]]
+        point_2_c_infill = [yco_c_2[3], zco_c_2[3]]
+        point_3_c_infill = [yco_c_2[2], zco_c_2[2]]
+        point_4_c_infill = [yco_c_2[1], zco_c_2[1]]
+        
+        yt = max(yco_s, yco_c, yco_c_2)
+        yb = min(yco_s, yco_c, yco_c_2)
+        zt = max(zco_s, zco_c, zco_c_2)
+        zb = min(zco_s, zco_c, zco_c_2)
+        
+        # 재료 값
+        stif_factor = options["matl_stif_factor"]
+        steel_elast = 1.0
+        concrete_elast = 1.0 / options["matl_elast"] * stif_factor
+        
+        # 좌표 반환
+        vertices= {
+            "outer": [
+                {
+                    "y": yco_s,
+                    "z": zco_s,
+                    "reference": {
+                        "name": "steel",
+                        "elast": steel_elast
+                    }
+                },
+                {
+                    "y": yco_c,
+                    "z": zco_c,
+                    "reference": {
+                        "name": "concrete_encase",
+                        "elast": concrete_elast
+                    }
+                },
+                {
+                    "y": yco_c_2,
+                    "z": zco_c_2,
+                    "reference": {
+                        "name": "concrete_infill",
+                        "elast": concrete_elast
+                    }
+                }
+            ],
+            "inner": [
+                {
+                    "y": yci_s,
+                    "z": zci_s,
+                    "reference": {
+                        "name": "steel",
+                        "elast": steel_elast
+                    }
+                },
+                {
+                    "y": yci_c,
+                    "z": zci_c,
+                    "reference": {
+                        "name": "concrete_encase",
+                        "elast": concrete_elast
+                    }
+                }
+            ]
+        }
+        
+        # 특정 좌표 저장
+        reference_points= {
+            "steel": {
+                "point_1": point_1_s,
+                "point_2": point_2_s,
+                "point_3": point_3_s,
+                "point_4": point_4_s
+            },
+            "concrete_encase": {
+                "point_1": point_1_c_encase,
+                "point_2": point_2_c_encase,
+                "point_3": point_3_c_encase,
+                "point_4": point_4_c_encase
+            },
+            "concrete_infill": {
+                "point_1": point_1_c_infill,
+                "point_2": point_2_c_infill,
+                "point_3": point_3_c_infill,
+                "point_4": point_4_c_infill
+            },
+            "total": {
+                "point_1": point_1_s,
+                "point_2": point_2_s,
+                "point_3": point_3_s,
+                "point_4": point_4_s
+            },
+            "extreme_fiber": {
+                "yt": yt,
+                "yb": yb,
+                "zt": zt,
+                "zb": zb
+            }
+        }
+        
+        # 특성 컨트롤 데이터
+        properties_control = {
+            "name": ["steel", "concrete_encase", "concrete_infill"],
+            "control": "steel"
+        }
+        
+        return vertices, reference_points, properties_control
+    

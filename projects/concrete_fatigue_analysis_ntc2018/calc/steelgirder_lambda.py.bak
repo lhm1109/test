@@ -1,0 +1,631 @@
+# calc/steelgirder_lambda.py
+import math
+import pandas as pd
+import numpy as np
+
+# Values for λ1 for railway reference traffic
+# Structure follows: (span_length, type1, type2, type3, type4, type5, type6, type7, type8, mixed_EC)
+lambda1_table_railway = [
+    (0.5, 1.38, 1.27, 1.31, 1.5, 1.62, 1.65, 1.69, 1.65, 1.6),
+    (1.0, 1.38, 1.27, 1.31, 1.5, 1.62, 1.65, 1.69, 1.65, 1.6),
+    (1.5, 1.38, 1.27, 1.31, 1.5, 1.62, 1.65, 1.69, 1.65, 1.6),
+    (2.0, 1.37, 1.26, 1.31, 1.49, 1.35, 0.46, 1.53, 1.64, 1.46),
+    (2.5, 1.17, 1.23, 1.28, 0.46, 1.29, 1.39, 1.44, 1.6, 1.38),
+    (3.0, 1.05, 1.19, 1.25, 1.42, 1.25, 1.35, 1.4, 1.56, 1.35),
+    (3.5, 0.94, 1.02, 1.12, 1.16, 1.12, 1.18, 1.17, 1.4, 1.17),
+    (4.0, 0.81, 0.82, 0.96, 1.0, 1.15, 1.08, 1.05, 1.2, 1.07),
+    (4.5, 0.77, 0.73, 0.88, 0.91, 1.14, 1.07, 1.04, 0.97, 1.02),
+    (5.0, 0.86, 0.69, 0.8, 0.86, 1.16, 1.07, 1.05, 0.93, 1.03),
+    (6.0, 0.97, 0.63, 0.79, 0.79, 1.12, 1.07, 1.07, 0.78, 1.03),
+    (7.0, 0.98, 0.57, 0.79, 0.82, 0.96, 1.04, 1.07, 0.79, 0.97),
+    (8.0, 0.92, 0.55, 0.77, 0.83, 0.85, 1.01, 1.06, 0.73, 0.92),
+    (9.0, 0.88, 0.56, 0.74, 0.83, 0.77, 0.96, 1.05, 0.68, 0.88),
+    (10.0, 0.85, 0.56, 0.72, 0.83, 0.66, 0.91, 1.04, 0.65, 0.85),
+    (12.5, 0.79, 0.55, 0.73, 0.78, 0.52, 0.89, 1.0, 0.6, 0.82),
+    (15.0, 0.75, 0.56, 0.73, 0.77, 0.51, 0.81, 0.91, 0.59, 0.76),
+    (17.5, 0.74, 0.58, 0.73, 0.68, 0.53, 0.72, 0.8, 0.58, 0.7),
+    (20.0, 0.74, 0.55, 0.68, 0.66, 0.55, 0.72, 0.7, 0.58, 0.67),
+    (25.0, 0.76, 0.59, 0.56, 0.58, 0.59, 0.69, 0.68, 0.6, 0.66),
+    (30.0, 0.77, 0.6, 0.5, 0.53, 0.6, 0.65, 0.69, 0.63, 0.65),
+    (35.0, 0.76, 0.58, 0.49, 0.51, 0.63, 0.62, 0.68, 0.65, 0.64),
+    (40.0, 0.73, 0.56, 0.47, 0.5, 0.66, 0.62, 0.68, 0.65, 0.64),
+    (45.0, 0.7, 0.53, 0.45, 0.49, 0.68, 0.61, 0.68, 0.65, 0.64),
+    (50.0, 0.68, 0.51, 0.43, 0.48, 0.7, 0.6, 0.69, 0.65, 0.63),
+    (60.0, 0.64, 0.47, 0.41, 0.47, 0.73, 0.57, 0.68, 0.64, 0.63),
+    (70.0, 0.61, 0.45, 0.4, 0.45, 0.75, 0.56, 0.67, 0.63, 0.62),
+    (80.0, 0.57, 0.43, 0.38, 0.42, 0.76, 0.53, 0.67, 0.62, 0.61),
+    (90.0, 0.53, 0.4, 0.36, 0.41, 0.77, 0.52, 0.67, 0.62, 0.61),
+    (100.0, 0.51, 0.38, 0.36, 0.39, 0.77, 0.51, 0.67, 0.62, 0.6)
+]
+
+
+# Values for λ1 for express multiple units and underground trains
+# Structure follows: (span_length, type9, type10)
+lambda1_table_multiple_underground_rail = [
+    (0.5, 0.97, 1.00),
+    (1.0, 0.97, 1.00),
+    (1.5, 0.97, 1.00),
+    (2.0, 0.97, 0.99),
+    (2.5, 0.95, 0.97),
+    (3.0, 0.85, 0.94),
+    (3.5, 0.76, 0.85),
+    (4.0, 0.65, 0.71),
+    (4.5, 0.59, 0.65),
+    (5.0, 0.55, 0.62),
+    (6.0, 0.58, 0.63),
+    (7.0, 0.58, 0.60),
+    (8.0, 0.56, 0.60),
+    (9.0, 0.56, 0.55),
+    (10.0, 0.56, 0.51),
+    (12.5, 0.55, 0.47),
+    (15.0, 0.50, 0.44),
+    (17.5, 0.46, 0.44),
+    (20.0, 0.44, 0.43),
+    (25.0, 0.40, 0.41),
+    (30.0, 0.37, 0.42),
+    (35.0, 0.36, 0.44),
+    (40.0, 0.35, 0.46),
+    (45.0, 0.35, 0.47),
+    (50.0, 0.36, 0.48),
+    (60.0, 0.39, 0.48),
+    (70.0, 0.40, 0.49),
+    (80.0, 0.39, 0.49),
+    (90.0, 0.39, 0.48),
+    (100.0, 0.40, 0.48)
+]
+
+# Values for λ1 for railway traffic with 25t per axle
+# Structure follows: (span_length, type5, type6, type11, type12, mixed_25t)
+lambda1_table_heavy_rail = [
+    (0.5, 1.62, 1.65, 1.83, 1.79, 1.65),
+    (1.0, 1.62, 1.65, 1.83, 1.79, 1.65),
+    (1.5, 1.62, 1.65, 1.83, 1.79, 1.65),
+    (2.0, 1.35, 1.46, 1.81, 1.78, 1.64),
+    (2.5, 1.29, 1.39, 1.56, 1.74, 1.55),
+    (3.0, 1.25, 1.35, 1.51, 1.69, 1.51),
+    (3.5, 1.12, 1.18, 1.21, 1.57, 1.31),
+    (4.0, 1.15, 1.08, 1.04, 1.30, 1.16),
+    (4.5, 1.14, 1.07, 1.05, 1.05, 1.08),
+    (5.0, 1.16, 1.07, 1.07, 1.00, 1.07),
+    (6.0, 1.12, 1.07, 1.10, 0.87, 1.04),
+    (7.0, 0.96, 1.04, 1.15, 0.77, 1.02),
+    (8.0, 0.85, 1.01, 1.14, 0.71, 0.99),
+    (9.0, 0.77, 0.96, 1.13, 0.67, 0.96),
+    (10.0, 0.66, 0.91, 1.12, 0.64, 0.93),
+    (12.5, 0.52, 0.89, 1.07, 0.60, 0.90),
+    (15.0, 0.51, 0.81, 0.99, 0.59, 0.92),
+    (17.5, 0.53, 0.72, 0.85, 0.58, 0.73),
+    (20.0, 0.55, 0.72, 0.76, 0.58, 0.68),
+    (25.0, 0.59, 0.69, 0.67, 0.59, 0.65),
+    (30.0, 0.60, 0.65, 0.68, 0.82, 0.64),
+    (35.0, 0.63, 0.62, 0.68, 0.65, 0.65),
+    (40.0, 0.66, 0.62, 0.68, 0.65, 0.65),
+    (45.0, 0.68, 0.61, 0.69, 0.65, 0.65),
+    (50.0, 0.70, 0.60, 0.70, 0.65, 0.66),
+    (60.0, 0.73, 0.57, 0.69, 0.65, 0.66),
+    (70.0, 0.75, 0.56, 0.69, 0.65, 0.66),
+    (80.0, 0.76, 0.53, 0.70, 0.65, 0.66),
+    (90.0, 0.77, 0.52, 0.70, 0.65, 0.66),
+    (100.0, 0.77, 0.51, 0.70, 0.65, 0.66)
+]
+
+# Values for λ2 based on annual traffic volume
+lambda2_values_rail = {
+    5: 0.72,
+    10: 0.83,
+    15: 0.90,
+    20: 0.96,
+    25: 1.00,
+    30: 1.04,
+    35: 1.07,
+    40: 1.10,
+    50: 1.15
+}
+
+# Values for λ3 based on design life of structure
+lambda3_values_rail = {
+    50: 0.87,
+    60: 0.90,
+    70: 0.93,
+    80: 0.96,
+    90: 0.98,
+    100: 1.00,
+    120: 1.04
+}
+
+# Values for λ4 based on stress ratio
+
+
+def interpolate_value(x, x_values, y_values):
+    """Linear interpolation between values"""
+    if x <= min(x_values):
+        return y_values[0]
+    if x >= max(x_values):
+        return y_values[-1]
+    
+    # Find indices of values that bound x
+    for i in range(len(x_values) - 1):
+        if x_values[i] <= x <= x_values[i+1]:
+            # Linear interpolation
+            return y_values[i] + (y_values[i+1] - y_values[i]) * (x - x_values[i]) / (x_values[i+1] - x_values[i])
+    
+    # Fallback (shouldn't reach here)
+    return y_values[-1]
+
+
+def get_lambda1_multiple_underground_rail(span_length, traffic_type):
+    """Get λ1 value for express multiple units and underground trains based on span length and traffic type"""
+    # Convert table to numpy arrays for interpolation
+    spans = np.array([row[0] for row in lambda1_table_multiple_underground_rail])
+    
+    # Get column index based on traffic type
+    type_index = 1 if traffic_type == "Type 9" else 2  # Type 9 or Type 10
+    
+    # Extract values for the specified traffic type
+    values = np.array([row[type_index] for row in lambda1_table_multiple_underground_rail])
+    
+    # Interpolate
+    return np.interp(span_length, spans, values)
+
+def get_lambda1_heavy_rail(span_length, traffic_type):
+    """Get λ1 value for heavy railway traffic based on span length and traffic type"""
+    # Convert table to numpy arrays for interpolation
+    spans = np.array([row[0] for row in lambda1_table_heavy_rail])
+    
+    # Get column index based on traffic type
+    type_index = {
+        "Type 5": 1,
+        "Type 6": 2,
+        "Type 11": 3,
+        "Type 12": 4,
+        "Mixed 25t": 5
+    }.get(traffic_type, 5)  # Default to Mixed 25t
+    
+    # Extract values for the specified traffic type
+    values = np.array([row[type_index] for row in lambda1_table_heavy_rail])
+    
+    # Interpolate
+    return np.interp(span_length, spans, values)
+# traffic_category = standard, metropolitan, heavy
+
+def get_lambda1_rail(span_length, traffic_type, traffic_category="Standard"):
+    """Get λ1 value based on span length, traffic type, and traffic category"""
+    if traffic_category == "Standard":
+        spans = np.array([row[0] for row in lambda1_table_railway])
+        type_index = {
+            "Type 1": 1,
+            "Type 2": 2,
+            "Type 3": 3,
+            "Type 4": 4,
+            "Type 5": 5,
+            "Type 6": 6,
+            "Type 7": 7,
+            "Type 8": 8,
+            "Mixed EC": 9
+        }.get(traffic_type, 9)  # Default to Mixed EC
+        
+        values = np.array([row[type_index] for row in lambda1_table_railway])
+        return np.interp(span_length, spans, values)
+    
+    elif traffic_category == "Multiple/Underground":
+        spans = np.array([row[0] for row in lambda1_table_multiple_underground_rail])
+        type_index = 1 if traffic_type == "Type 9" else 2  # Type 9 or Type 10
+        
+        values = np.array([row[type_index] for row in lambda1_table_multiple_underground_rail])
+        return np.interp(span_length, spans, values)
+    
+    elif traffic_category == "25t per axle":
+        spans = np.array([row[0] for row in lambda1_table_heavy_rail])
+        type_index = {
+            "Type 5": 1,
+            "Type 6": 2,
+            "Type 11": 3,
+            "Type 12": 4,
+            "Mixed 25t": 5
+        }.get(traffic_type, 5)  # Default to Mixed 25t
+        
+        values = np.array([row[type_index] for row in lambda1_table_heavy_rail])
+        return np.interp(span_length, spans, values)
+    
+    else:
+        # 기본값으로 Standard의 Mixed EC 사용
+        spans = np.array([row[0] for row in lambda1_table_railway])
+        values = np.array([row[9] for row in lambda1_table_railway])
+        return np.interp(span_length, spans, values)
+
+def get_lambda2_rail(annual_traffic):
+    """Get λ2 value based on annual traffic volume in million tons/year"""
+    # Get list of traffic volumes and corresponding lambda2 values
+    traffic_volumes = list(lambda2_values_rail.keys())
+    lambda2_vals = list(lambda2_values_rail.values())
+    
+    # Interpolate
+    return np.interp(annual_traffic, traffic_volumes, lambda2_vals)
+
+def get_lambda3_rail(design_life):
+    """Get λ3 value based on design life in years"""
+    # Get list of design life values and corresponding lambda3 values
+    design_lives = list(lambda3_values_rail.keys())
+    lambda3_vals = list(lambda3_values_rail.values())
+    
+    # Interpolate
+    return np.interp(design_life, design_lives, lambda3_vals)
+
+def get_lambda4_rail(stress_ratio):
+    """Get λ4 value based on stress ratio Δσ1/Δσ1+2"""
+    stress_ratios = [0.50, 0.60, 0.70, 0.80, 0.90, 1.00]  # 오름차순
+    lambda4_vals = [0.71, 0.72, 0.77, 0.84, 0.91, 1.00]   # 오름차순
+    
+    return np.interp(stress_ratio, stress_ratios, lambda4_vals)
+
+def calculate_lambda_s_rail(lambda1, lambda2, lambda3, lambda4):
+    """Calculate combined lambda coefficient λs for steel fatigue"""
+    return lambda1 * lambda2 * lambda3 * lambda4
+
+# Function to validate if lambda value exceeds maximum allowed
+def check_lambda_max(lambda_s, is_railway=True):
+    """Check if lambda_s exceeds maximum allowed value (2.0 for railway, 2.0 for road)"""
+    max_value = 2.0
+    return lambda_s <= max_value, max_value
+
+# Calculate equivalent stress ranges
+def calculate_delta_sigma_equ(sigma12, lambda_s):
+    """Calculate equivalent stress range for direct stress"""
+    return sigma12 * lambda_s
+
+def calculate_delta_tau_equ(tau1, lambda_s):
+    """Calculate equivalent stress range for shear stress"""
+    return tau1 * lambda_s
+
+# Calculate design fatigue strengths
+def calculate_delta_sigma_rsk(delta_sigma_amm, gamma_m=1.35):
+    """Calculate design fatigue strength for direct stress"""
+    return delta_sigma_amm / gamma_m
+
+def calculate_delta_tau_rsk(delta_tau_amm, gamma_m=1.35):
+    """Calculate design fatigue strength for shear stress"""
+    return delta_tau_amm / gamma_m
+
+# Calculate verification ratios
+def calculate_verification_ratio_sigma(delta_sigma_equ, delta_sigma_rsk):
+    """Calculate verification ratio for direct stress"""
+    return delta_sigma_equ / delta_sigma_rsk
+
+def calculate_verification_ratio_tau(delta_tau_equ, delta_tau_rsk):
+    """Calculate verification ratio for shear stress"""
+    return delta_tau_equ / delta_tau_rsk
+
+# Calculate shear stress from beam properties
+def calculate_shear_stress(V, Q, I, b):
+    """Calculate shear stress using τ = (V·Q)/(I·b)"""
+    return (V *
+     Q) / (I * b)
+
+
+
+
+# Road bridge λ1 calculation functions based on formulas from images
+def get_lambda1_road_midspan(span_length):
+    """
+    Calculate λ1 for road bridges at midspan using formula from Image 1
+    
+    Formula: λ1 = 2.55 - 0.7 * (L-10)/70 for L in range [10, 80]
+    """
+    L = span_length
+    
+    # Clamp span length to valid range
+    L = max(10, min(80, L))
+    
+    # Apply formula: λ1 = 2.55 - 0.7 * (L-10)/70
+    lambda1_road = 2.55 - 0.7 * (L - 10) / 70
+    
+    return lambda1_road
+
+
+
+
+def get_lambda1_road_support(span_length):
+    """
+    Calculate λ1 for road bridges at support using piecewise formula from Image 2
+    
+    Formulas:
+    - For L ≤ 20m: λ1 = 2.0 - 0.3 * (L-10)/20
+    - For 20m < L ≤ 30m: λ1 = 1.70 (constant)
+    - For L > 30m: λ1 = 1.70 + 0.5 * (L-30)/50
+    """
+    L = span_length
+    
+    # Clamp span length to valid range
+    L = max(10, min(80, L))
+    
+    if L <= 30:
+        lambda1_road = 2.0 - 0.3 * (L - 10) / 20  # Note: denominator is 10, not 20 based on the slope
+    else:
+        lambda1_road = 1.70 + 0.5 * (L - 30) / 50
+    
+    return lambda1_road
+
+
+def get_lambda_max_road_midspan(span_length):
+
+    L = span_length
+    
+    # Clamp span length to valid range
+    L = max(10, min(80, L))
+    
+    if L <= 25:
+        # Decreasing line from 2.50 to 2.00
+        lambda_max_road = 2.50 - 0.5 * (L - 10) / 15
+    else:
+        # Constant value
+        lambda_max_road = 2.00
+    
+    return lambda_max_road
+
+
+def get_lambda_max_road_support(span_length):
+
+    L = span_length
+    
+    # Clamp span length to valid range
+    L = max(10, min(80, L))
+    
+    if L <= 30:
+        # Constant value
+        lambda_max_road = 1.80
+    else:
+        lambda_max_road = 1.80 + 0.9 * (L - 30) / 50
+    
+    return lambda_max_road
+
+lambda2_table_road = {
+    200: {0.25e6: 0.362, 0.50e6: 0.417, 0.75e6: 0.452, 1.00e6: 0.479, 1.25e6: 0.500, 1.50e6: 0.519, 1.75e6: 0.535, 2.00e6: 0.550},
+    300: {0.25e6: 0.544, 0.50e6: 0.625, 0.75e6: 0.678, 1.00e6: 0.712, 1.25e6: 0.751, 1.50e6: 0.779, 1.75e6: 0.803, 2.00e6: 0.825},
+    400: {0.25e6: 0.725, 0.50e6: 0.833, 0.75e6: 0.904, 1.00e6: 0.957, 1.25e6: 1.001, 1.50e6: 1.038, 1.75e6: 1.071, 2.00e6: 1.100},
+    500: {0.25e6: 0.907, 0.50e6: 1.042, 0.75e6: 1.130, 1.00e6: 1.197, 1.25e6: 1.251, 1.50e6: 1.298, 1.75e6: 1.338, 2.00e6: 1.374},
+    600: {0.25e6: 1.088, 0.50e6: 1.250, 0.75e6: 1.356, 1.00e6: 1.436, 1.25e6: 1.501, 1.50e6: 1.557, 1.75e6: 1.606, 2.00e6: 1.649}
+}
+
+lambda3_table_road = {
+    50: 0.871, 60: 0.903, 70: 0.931, 80: 0.956, 90: 0.979, 100: 1.00, 120: 1.037
+}
+
+def get_lambda1_road(span_length, location="midspan"):
+    """Get λ1 value for road bridges using formulas based on span length and location"""
+    if location == "midspan":
+        return get_lambda1_road_midspan(span_length)
+    else:  # support
+        return get_lambda1_road_support(span_length)
+
+
+def get_lambda_max_road(span_length, location="midspan"):
+    """Get λmax value for road bridges using formulas based on span length and location"""
+    if location == "midspan":
+        return get_lambda_max_road_midspan(span_length)
+    else:  # support
+        return get_lambda_max_road_support(span_length)
+
+
+
+def get_lambda2_road(qmk, nobs):
+    """
+    Get λ2 value for road bridges based on Qmk and Nobs using table interpolation
+    
+    Args:
+        qmk (float): Average gross weight of lorries (kN) - typically 200-600
+        nobs (float): Number of lorries per year in slow lane - typically 0.25E6 to 2.00E6
+    
+    Returns:
+        float: λ2 value
+    """
+    # Find closest Qmk values for interpolation
+    qmk_values = sorted(lambda2_table_road.keys())
+    nobs_values = sorted(next(iter(lambda2_table_road.values())).keys())
+    
+    # Clamp values to available range
+    qmk = max(min(qmk, max(qmk_values)), min(qmk_values))
+    nobs = max(min(nobs, max(nobs_values)), min(nobs_values))
+    
+    # Interpolate for Nobs first, then for Qmk
+    result_by_qmk = {}
+    
+    for qmk_val in qmk_values:
+        nobs_vals = np.array(list(lambda2_table_road[qmk_val].keys()))
+        lambda2_vals = np.array(list(lambda2_table_road[qmk_val].values()))
+        result_by_qmk[qmk_val] = np.interp(nobs, nobs_vals, lambda2_vals)
+    
+    # Now interpolate across Qmk values
+    qmk_vals = np.array(list(result_by_qmk.keys()))
+    lambda2_vals = np.array(list(result_by_qmk.values()))
+    
+    return np.interp(qmk, qmk_vals, lambda2_vals)
+
+def get_lambda3_road(design_life):
+    """Get λ3 value for road bridges based on design life in years"""
+    design_lives = np.array(list(lambda3_table_road.keys()))
+    lambda3_vals = np.array(list(lambda3_table_road.values()))
+    
+    return np.interp(design_life, design_lives, lambda3_vals)
+
+def calculate_lambda4_road(eta_values, qm_values, n_values):
+    """
+    Calculate λ4 for road bridges using equation (9.12)
+    
+    Args:
+        eta_values (list): Influence line values for each lane [η1, η2, ..., ηk]
+        qm_values (list): Average gross weight of lorries in each lane [Qm1, Qm2, ..., Qmk]
+        n_values (list): Number of lorries per year in each lane [N1, N2, ..., Nk]
+    
+    Returns:
+        float: λ4 value
+    """
+    if len(eta_values) != len(qm_values) or len(eta_values) != len(n_values):
+        raise ValueError("All input lists must have the same length")
+    
+    if not eta_values:
+        return 1.0
+    
+    # Reference values (lane 1)
+    eta1 = eta_values[0]
+    qm1 = qm_values[0]
+    n1 = n_values[0]
+    
+    # Calculate the sum term
+    sum_term = 0.0
+    for i in range(1, len(eta_values)):  # Start from lane 2 (index 1)
+        eta_i = eta_values[i]
+        qm_i = qm_values[i]
+        n_i = n_values[i]
+        
+        ratio = (eta_i * qm_i) / (eta1 * qm1)
+        sum_term += (n_i / n1) * (ratio ** 5)
+    
+    # Calculate λ4 using equation (9.12)
+    lambda4 = (1 + sum_term) ** (1/5)
+    
+    return lambda4
+
+def calculate_lambda4_road_simplified(main_lane_traffic_ratio=1.0, adjacent_lanes=1):
+    """
+    Simplified λ4 calculation for road bridges
+    
+    Args:
+        main_lane_traffic_ratio (float): Ratio of stress from main lane
+        adjacent_lanes (int): Number of adjacent lanes with traffic
+    
+    Returns:
+        float: λ4 value
+    """
+    if adjacent_lanes <= 0:
+        return 1.0
+    
+    # Simplified calculation assuming equal traffic in adjacent lanes
+    # and influence coefficients that decrease with distance
+    sum_term = 0.0
+    for i in range(adjacent_lanes):
+        # Assume decreasing influence with lane distance
+        influence_ratio = 1.0 / (i + 2)  # Adjacent lanes have reduced influence
+        traffic_ratio = 0.5  # Assume 50% traffic in adjacent lanes
+        sum_term += traffic_ratio * (influence_ratio ** 5)
+    
+    lambda4 = (1 + sum_term) ** (1/5)
+    return lambda4
+
+def get_lambda4_road(stress_ratio_or_params):
+    """Get λ4 value for road bridges"""
+    if isinstance(stress_ratio_or_params, dict):
+        # For detailed calculation with multiple lanes
+        return calculate_lambda4_road(
+            stress_ratio_or_params.get('eta_values', [1.0]),
+            stress_ratio_or_params.get('qm_values', [260]),
+            stress_ratio_or_params.get('n_values', [0.5e6])
+        )
+    else:
+        # Simplified calculation
+        return calculate_lambda4_road_simplified(stress_ratio_or_params, 1)
+
+def calculate_lambda_s_road(lambda1, lambda2, lambda3, lambda4):
+    """Calculate combined lambda coefficient λs for road bridge steel fatigue"""
+    return lambda1 * lambda2 * lambda3 * lambda4
+
+def check_lambda_max_road(lambda_s, span_length=35, location="midspan"):
+    """Check if lambda_s exceeds maximum allowed value for road bridges"""
+    max_value = get_lambda_max_road(span_length, location)
+    return lambda_s <= max_value, max_value
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# # Calculate equivalent stress ranges (same as railway)
+# def calculate_delta_sigma_equ_road(sigma12, lambda_s):
+#     """Calculate equivalent stress range for direct stress - road bridges"""
+#     return sigma12 * lambda_s
+
+# def calculate_delta_tau_equ_road(tau1, lambda_s):
+#     """Calculate equivalent stress range for shear stress - road bridges"""
+#     return tau1 * lambda_s
+
+# # Calculate design fatigue strengths (same as railway)
+# def calculate_delta_sigma_rsk_road(delta_sigma_amm, gamma_m=1.35):
+#     """Calculate design fatigue strength for direct stress - road bridges"""
+#     return delta_sigma_amm / gamma_m
+
+# def calculate_delta_tau_rsk_road(delta_tau_amm, gamma_m=1.35):
+#     """Calculate design fatigue strength for shear stress - road bridges"""
+#     return delta_tau_amm / gamma_m
+
+# if __name__ == "__main__":
+#     # Test road bridge formulas
+#     print("=== Road Bridge Lambda Calculation Tests ===")
+    
+#     # Test different span lengths
+#     test_spans = [10, 20, 30, 40, 50, 60, 70, 80]
+    
+#     print("Span [m] | λ1 (midspan) | λ1 (support) | λmax (midspan) | λmax (support)")
+#     print("-" * 70)
+    
+#     for span in test_spans:
+#         lambda1_mid = get_lambda1_road(span, "midspan")
+#         lambda1_sup = get_lambda1_road(span, "support")
+#         lambda_max_mid = get_lambda_max_road(span, "midspan")
+#         lambda_max_sup = get_lambda_max_road(span, "support")
+        
+#         print(f"{span:8d} | {lambda1_mid:11.3f} | {lambda1_sup:11.3f} | {lambda_max_mid:13.3f} | {lambda_max_sup:13.3f}")
+    
+#     # Test combined lambda calculation
+#     print(f"\n=== Combined Lambda Test (35m span) ===")
+#     span = 35
+#     lambda1 = get_lambda1_road(span, "midspan")
+#     lambda2 = get_lambda2_road(260, 0.5e6)  # Typical values
+#     lambda3 = get_lambda3_road(100)
+#     lambda4 = get_lambda4_road(0.8)
+#     lambda_s = calculate_lambda_s_road(lambda1, lambda2, lambda3, lambda4)
+    
+#     print(f"λ1 = {lambda1:.3f}")
+#     print(f"λ2 = {lambda2:.3f}")
+#     print(f"λ3 = {lambda3:.3f}")
+#     print(f"λ4 = {lambda4:.3f}")
+#     print(f"λs = {lambda_s:.3f}")
+    
+#     is_valid, max_value = check_lambda_max_road(lambda_s, span, "midspan")
+#     print(f"λs <= λmax: {is_valid} (λmax = {max_value:.3f})")
+
+
+# if __name__ == "__main__":
+#     # Test lambda1 lookup
+#     print(f"λ1 for 35m span with Mixed EC traffic: {get_lambda1_rail(35, 'Mixed EC', 'Standard')}")
+    
+#     # Test lambda2 lookup
+#     print(f"λ2 for 25 million tons/year: {get_lambda2_rail(25)}")
+    
+#     # Test lambda3 lookup
+#     print(f"λ3 for 50 years design life: {get_lambda3_rail(50)}")
+    
+#     # Test lambda4 lookup
+#     print(f"λ4 for stress ratio 0.80: {get_lambda4_rail(0.80)}")
+    
+#     # Test combined lambda
+#     lambda1 = get_lambda1_rail(35, "Mixed EC", "Standard")
+#     lambda2 = get_lambda2_rail(25)
+#     lambda3 = get_lambda3_rail(50)
+#     lambda4 = get_lambda4_rail(0.80)
+#     lambda_s = calculate_lambda_s_rail(lambda1, lambda2, lambda3, lambda4)
+#     print(f"Combined λs: {lambda_s}")
+    
+#     # Test lambda_max check
+#     is_valid, max_value = check_lambda_max(lambda_s)
+#     print(f"λs <= λmax: {is_valid} (λmax = {max_value})")
